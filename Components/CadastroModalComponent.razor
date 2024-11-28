@@ -1,0 +1,120 @@
+﻿@inject IEspecialidadesRepository EspecialidadesRepository
+@inject IProfissionaisService ProfissionaisService
+@inject IToastServiceNotify ToastServiceNotify
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="staticBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staticBackdropLabel">Adicionar Profissional</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+
+                    <div class="form-group mb-3">
+                        <label class="fw-bold">Nome do Profissional</label>
+                        <input type="text" class="form-control" @bind="Profissional.Nome" placeholder="Ex: João Carlos..." />
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="fw-bold">Especialidade</label>
+                        <select class="form-select" @onchange="AtualizarTipoDocumento">
+                            <option value="">Selecione...</option>
+                            @if (Especialidades.Any())
+                            {
+                                foreach (var item in Especialidades)
+                                {
+                                    <option value="@item.Nome">@item.Nome</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="fw-bold">Tipo do Documento</label>
+                        <input class="form-control" value="@Profissional.TipoDeDocumento" readonly />
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="fw-bold">Número do Documento</label>
+                        <input type="text" class="form-control" @bind="Profissional.NumeroDoDocumento" placeholder="123456789" />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="LimparObj" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success" @onclick="InserirProfissional" data-bs-dismiss="@ModalControl">Salvar</button>
+                    </div>
+                    <span>
+                        @foreach (var item in Errors)
+                        {
+                            <p style="color:red;">@item</p>
+
+                        }
+
+                    </span>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [Parameter] 
+    public EventCallback OnCadastroConcluido { get; set; }
+
+    private List<Especialidades> Especialidades = new List<Especialidades>();
+    private Profissional Profissional = new Profissional();
+    private List<string> Errors = new List<string>();
+    bool ModalNotOpend = false;
+    private string ModalControl
+    {
+        get
+        {
+            return ModalNotOpend ? "" : "modal";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        ModalNotOpend = false;
+        var especilidades = await EspecialidadesRepository.GetAllAsync();
+        if (especilidades.Any())
+        {
+            Especialidades.AddRange(especilidades);
+        }
+    }
+
+    private async Task InserirProfissional()
+    {
+        Errors = new List<string>();
+        var error = Profissional.Validar();
+
+        if (error.Count > 0)
+        {
+            Errors.AddRange(error);
+            return;
+        }
+        await ProfissionaisService.AddProfissionalAsync(Profissional);
+        ToastServiceNotify.Notify(ToastMenssageHelper.Titles.Insert, ToastMenssageHelper.Messages.Insert);
+        Profissional = new Profissional();
+        await OnCadastroConcluido.InvokeAsync();
+        ModalNotOpend = true; 
+        ModalNotOpend = false;
+    }
+    private void AtualizarTipoDocumento(ChangeEventArgs e)
+    {
+        var especialidadeSelecionada = e.Value?.ToString();
+
+        Profissional.Especialidade = especialidadeSelecionada;
+
+        var especialidade = Especialidades.FirstOrDefault(x => x.Nome == especialidadeSelecionada);
+        Profissional.TipoDeDocumento = especialidade?.TipoDocumento ?? string.Empty;
+    }
+    private void LimparObj()
+    {
+        Profissional = new Profissional();
+        
+    }
+}

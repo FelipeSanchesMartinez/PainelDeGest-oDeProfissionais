@@ -1,0 +1,171 @@
+﻿ @page "/"
+
+@inject IProfissionaisService ProfissionaisService
+@inject IEspecialidadesRepository EspecialidadesRepository
+@inject IToastServiceNotify ToastServiceNotify
+@inject ModalService ModalService
+
+
+<PageTitle>Home</PageTitle>
+
+<CadastroModalComponent OnCadastroConcluido="AtualizarPagina"></CadastroModalComponent>
+
+<GridItensComponnet Profissionais="Profissionais" OnAbrirModalDeletar="AbrirModalDeletar" OnAbrirModalEditar="AbrirModalEditar"></GridItensComponnet>
+
+<Modal @ref="modalDeletar"
+       title="Excluir Profissional"
+       Size="ModalSize.ExtraLarge">
+    <BodyTemplate>
+        Tem certeza que deseja excluir o profissional @profissional.Nome  (@profissional.TipoDeDocumento @profissional.NumeroDoDocumento)? Essa ação não poderá ser desfeita!
+    </BodyTemplate>
+    <FooterTemplate>
+        <Button Color="ButtonColor.Secondary" @onclick="OnHideModalClick">Cancelar</Button>
+        <Button Color="ButtonColor.Danger" @onclick="DeletarProfissional">Sim, excluir</Button>
+    </FooterTemplate>
+</Modal>
+
+<Modal @ref="modalEditar"
+       title="Editar Profissional"
+       Size="ModalSize.ExtraLarge">
+    <BodyTemplate>
+        <div class="form-group mb-3">
+            <label class="fw-bold">Nome do Profissional</label>
+            <input type="text" class="form-control" @bind="profissional.Nome" placeholder="Ex: João Carlos..." />
+
+        </div>
+
+        <div class="form-group mb-3">
+            <label class="fw-bold">Especialidade</label>
+            <select class="form-select" @onchange="AtualizarTipoDocumento">
+                <option value="">@profissional.Especialidade</option>
+                @if (Especialidades.Any())
+                {
+                    foreach (var item in Especialidades)
+                    {
+                        <option value="@item.Nome">@item.Nome</option>
+                    }
+                }
+            </select>
+
+        </div>
+
+        <div class="form-group mb-3">
+            <label class="fw-bold">Tipo do Documento</label>
+            <input class="form-control" value="@profissional.TipoDeDocumento" readonly />
+        </div>
+
+        <div class="form-group mb-3">
+            <label class="fw-bold">Número do Documento</label>
+            <input type="text" class="form-control" @bind="profissional.NumeroDoDocumento" placeholder="123456789" />
+
+        </div>
+        <span>
+            @foreach (var item in Errors)
+            {
+                <p style="color:red;">@item</p>
+
+            }
+
+        </span>
+
+    </BodyTemplate>
+
+    <FooterTemplate>
+        <Button Color="ButtonColor.Secondary" @onclick="OnHideModalClick">Cancelar</Button>
+        <Button Color="ButtonColor.Success" @onclick="EditarProfissional">Salvar</Button>
+    </FooterTemplate>
+
+</Modal>
+
+
+@code {
+    private List<Especialidades> Especialidades = new List<Especialidades>();
+    private Modal modalDeletar = default!;
+    private Modal modalEditar = default!;
+    private List<Profissional> Profissionais;
+    Profissional? profissional = null;
+    private List<string> Errors = new List<string>();
+
+    protected async override Task OnInitializedAsync()
+    {
+        Profissionais = new List<Profissional>();
+        await ObterProfissionais();
+    }
+    private async Task AtualizarPagina()
+    {
+        await OnInitializedAsync();
+
+    }
+    private async Task ObterProfissionais()
+    {
+        profissional = null;
+        var data = await ProfissionaisService.GetProfissionaisAsync();
+
+        if (data.Any())
+        {
+            Profissionais.AddRange(data);
+        }
+    }
+
+    private async Task OnHideModalClick()
+    {
+        await modalEditar.HideAsync();
+        await modalDeletar.HideAsync();
+        await OnInitializedAsync();
+    }
+    public async Task AbrirModalDeletar(Profissional item)
+    {
+        profissional = item;
+        await modalDeletar.ShowAsync();
+    }
+
+    private async Task DeletarProfissional()
+    {
+
+        await ProfissionaisService.DeleteProfissionalAsync(profissional);
+        ToastServiceNotify.Notify(ToastMenssageHelper.Titles.Delete, ToastMenssageHelper.Messages.Delete);
+        await OnHideModalClick();
+        await OnInitializedAsync();
+
+    }
+
+    private void AtualizarTipoDocumento(ChangeEventArgs e)
+    {
+        var especialidadeSelecionada = e.Value?.ToString();
+
+        profissional.Especialidade = especialidadeSelecionada;
+
+        var especialidade = Especialidades.FirstOrDefault(x => x.Nome == especialidadeSelecionada);
+        profissional.TipoDeDocumento = especialidade?.TipoDocumento ?? string.Empty;
+    }
+
+    public async Task AbrirModalEditar(Profissional item)
+    {
+        profissional = item;
+        var especilidades = await EspecialidadesRepository.GetAllAsync();
+        if (especilidades.Any())
+        {
+            Especialidades.AddRange(especilidades);
+        }
+        await modalEditar.ShowAsync();
+    }
+    private async Task EditarProfissional()
+    {
+        Errors = new List<string>();
+        var error = profissional.Validar();
+
+        if (error.Count > 0)
+        {
+            Errors.AddRange(error);
+            return;
+        }
+        await ProfissionaisService.UpdateProfissionalAsync(profissional);
+        ToastServiceNotify.Notify(ToastMenssageHelper.Titles.Update, ToastMenssageHelper.Messages.Update);
+        await OnHideModalClick();
+        await OnInitializedAsync();
+    }
+}
+
+
+
+
